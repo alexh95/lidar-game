@@ -10,6 +10,16 @@ const _head = new Vector3();
 const _feet = new Vector3();
 const _want = new Vector3();
 const _moved = new Vector3();
+const _follow = new Vector3();
+const _start = new Vector3();
+const _dir = new Vector3();
+
+/** How far your head may be from your body (horizontally) before the body steps after it (m). */
+const LEAN_FREE = 0.3;
+/** How far you can lean out past where your body can follow: over a railing or a ledge (m). */
+const LEAN_MAX = 0.75;
+/** The head is a ball this size: it stops at walls instead of passing into them. */
+const HEAD_RADIUS = 0.12;
 
 const overlayVertex = /* glsl */ `
 varying vec3 vDir;
@@ -31,11 +41,14 @@ void main() {
  * Analogue walking with collision, and turning.
  *
  * The body is a cylinder driven by Rapier's character controller: it slides along walls,
- * climbs steps up to 28 cm, follows slopes and stairs, and falls under gravity. Each
- * frame it tries to go where your head went in the room (you walked) plus where the stick
- * pushes it; the rig is then shifted so your head sits over the body. Walking into an
- * unscanned wall in the dark therefore stops you, whether you used the stick or your
- * legs.
+ * climbs steps up to 28 cm, follows slopes and stairs, and falls under gravity. The stick
+ * moves the body (and you with it).
+ *
+ * Your head is free to lean: the body only steps after it once the head is more than
+ * 30 cm away, and never off a ledge. So you can lean over a railing or look down over an
+ * edge. The head itself is a small ball: it stops at walls (the view is held back at the
+ * wall's surface, not pushed back to the body), and it can't lean out more than 75 cm past
+ * where the body can follow.
  *
  * Left stick walks (head-relative, analogue). Right stick turns: snap 45° by default, 30°
  * or smooth as options. A comfort vignette closes in while you move with the stick.
@@ -55,7 +68,7 @@ export class Locomotion {
   private onFaded: (() => void) | null = null;
   /** Stick input as a world velocity this frame (m/s), for tests. */
   readonly stickVelocity = new Vector3();
-  /** How much of last frame's wanted move (room + stick) collision refused (m). */
+  /** How far the head was held back last frame (at a wall, or past the lean limit) (m). */
   pushback = 0;
 
   constructor(private readonly app: App) {
@@ -117,10 +130,21 @@ export class Locomotion {
       bus.emit('snap-turn', { deg: -Math.sign(sx) * deg });
     } else if (Math.abs(sx) < 0.3) this.turnArmed = true;
 
-    // ---- Where the body wants to go: the head's room motion plus the stick ----
-    const head = app.headPosition(_head);
-    const feet = app.physics.playerFeet(_feet);
-    _want.set(head.x - feet.x, 0, head.z - feet.z);
+    // ---- The body steps after the head once it leans past LEAN_FREE (never off a ledge) ----
+    let head = app.headPosition(_head);
+    let feet = app.physics.playerFeet(_feet);
+    let roomStep = 0;
+    const offX = head.x - feet.x;
+    const offZ = head.z - feet.z;
+    const off = Math.hypot(offX, offZ);
+    if (off > LEAN_FREE && this.grounded) {
+      const k = (off - LEAN_FREE) / off;
+      app.physics.movePlayer(_follow.set(offX * k, 0, offZ * k), _moved, true, true);
+      roomStep = Math.hypot(_moved.x, _moved.z);
+    }
+
+    // ---- The stick (and gravity) move the body, and you with it ----
+    _want.set(0, 0, 0);
     let speed = 0;
     this.stickVelocity.set(0, 0, 0);
     if (moveHand.connected) {
@@ -147,23 +171,41 @@ export class Locomotion {
     if (this.grounded) this.vy = 0;
     const after = app.physics.playerFeet(_feet);
 
-    // The rig follows the body: the head ends up over it, the floor under the feet.
-    const dx = after.x - head.x;
-    const dz = after.z - head.z;
-    const roomStep = Math.hypot(_moved.x, _moved.z);
-    // Pushback: the part of the wanted move the body refused (it went where the body can't).
-    this.pushback = Math.hypot(_want.x - _moved.x, _want.z - _moved.z);
-    // Height follows quickly but not instantly, so each stair step is a short glide, not a
-    // 25 cm pop (big changes, like a fall or a placement, snap).
+    // The rig carries your head along with the stick's move (not the follow step: your head
+    // is already where it is). Height follows quickly but not instantly, so each stair step
+    // is a short glide, not a 25 cm pop (big changes, like a fall or a placement, snap).
+    const dx = _moved.x;
+    const dz = _moved.z;
+    roomStep += Math.hypot(dx, dz);
     const targetY = after.y + app.floorOffset;
     const dy = targetY - app.rig.position.y;
     const y = Math.abs(dy) > 0.6 ? targetY : app.rig.position.y + dy * damp(22, dt);
-    if (Math.hypot(dx, dz) > 1e-4 || Math.abs(y - app.rig.position.y) > 1e-5) {
+    if (Math.hypot(dx, dz) > 1e-5 || Math.abs(y - app.rig.position.y) > 1e-5) {
       app.rig.position.x += dx;
       app.rig.position.z += dz;
       app.rig.position.y = Math.abs(targetY - y) < 1e-4 ? targetY : y;
       app.updateRig();
       moved = true;
+    }
+
+    // ---- The head: a ball that can't go into walls or lean out too far ----
+    head = app.headPosition(_head);
+    feet = after;
+    // From the body's column at head height (over a railing, under a beam) to the head.
+    _start.set(feet.x, head.y, feet.z);
+    _dir.set(head.x - feet.x, 0, head.z - feet.z);
+    const reach = _dir.length();
+    this.pushback = 0;
+    if (reach > 1e-4) {
+      _dir.multiplyScalar(1 / reach);
+      const free = Math.min(app.physics.headRoom(_start, _dir, reach, HEAD_RADIUS), LEAN_MAX);
+      if (free < reach - 1e-4) {
+        this.pushback = reach - free;
+        app.rig.position.x -= _dir.x * this.pushback;
+        app.rig.position.z -= _dir.z * this.pushback;
+        app.updateRig();
+        moved = true;
+      }
     }
     this.distance += roomStep;
     this.stepAcc += roomStep;

@@ -10,7 +10,7 @@ SteamVR. Levels are authored in Blender.
 **Status (2026-10-20): first milestone (V1, technical viability) done in the emulator; not yet tried on the
 Frame.** Scanning, a persistent cloud of up to 4 M dots, material and live distance colouring, fading dots on
 moving things, saving between visits, analogue walking with collision and stairs, a Blender level pipeline,
-and 21 self-test checks. Numbers and reasoning: [DECISIONS.md](DECISIONS.md). Plan and next steps:
+and 24 self-test checks. Numbers and reasoning: [DECISIONS.md](DECISIONS.md). Plan and next steps:
 [PLAN.md](PLAN.md).
 
 | | |
@@ -44,7 +44,7 @@ feels through the stream:
 5. **Moving things:** the monolith in the hall and the pendulum through the corridor window. Does the fading
    trail read as motion?
 6. **Walking:** stick speed (1.6 m/s at full), stairs up and down, bumping into unscanned walls (also by
-   walking in your room). Any discomfort in the dark?
+   walking in your room), leaning over the mezzanine railing. Any discomfort in the dark?
 7. **Scanning feel:** the cone narrowing as you squeeze, the hum and hiss, the haptics, the scan rate.
 8. **Persistence:** scan a bit, exit, reload the page, re-enter: your scan should be back.
 9. **Numbers, if you can:** the wrist menu's **Info** page (fps, GPU ms, eye resolution, refresh rates) and
@@ -73,7 +73,7 @@ game. Conventions: [levels/README.md](levels/README.md). Open another level with
 | `?emulate` | An emulated headset (IWER) shaped like the Frame. Any desktop browser can enter "VR". |
 | `?emulate&devui` | Plus IWER's on-screen controls (mouse and keyboard). |
 | `?emulate&autostart` | Enter the emulated session at once; `window.__driver` moves the head and hands from the console. |
-| `?emulate&selftest` | The 21 scripted checks (`?selftest=scan-wall,stairs` for some). Results in `window.__selftest` and `[selftest] {…}` console lines. Uses its own save slot. |
+| `?emulate&selftest` | The 24 scripted checks (`?selftest=scan-wall,stairs` for some). Results in `window.__selftest` and `[selftest] {…}` console lines. Uses its own save slot. |
 
 Other flags: `?level=<name>`, `?slot=<name>` (save slot, default `main`), `?fresh` (start with an empty scan),
 `?seed=<n>` (repeatable scans), `?quality=low|high`.

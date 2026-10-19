@@ -51,6 +51,8 @@ export class Physics {
   readonly world: RAPIER.World;
   readonly info = new Map<number, SurfaceInfo>();
   private readonly ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: -1 });
+  private headBall: RAPIER.Ball | null = null;
+  private static readonly IDENTITY = { x: 0, y: 0, z: 0, w: 1 };
   readonly controller: RAPIER.KinematicCharacterController;
   playerBody!: RAPIER.RigidBody;
   playerCollider!: RAPIER.Collider;
@@ -152,7 +154,7 @@ export class Physics {
    * then settle back down. Keep that only if it got further and ended on the ground no more
    * than a step higher (so walls and benches still block).
    */
-  movePlayer(delta: Vector3, out: Vector3, wasGrounded: boolean): boolean {
+  movePlayer(delta: Vector3, out: Vector3, wasGrounded: boolean, stayOnGround = false): boolean {
     const t = this.playerBody.translation();
     const sx = t.x;
     const sy = t.y;
@@ -184,8 +186,39 @@ export class Physics {
         this.setBodyAt(sx + mx, sy + my, sz + mz);
       }
     }
+    // A move that mustn't leave the ground (the body stepping after a leaning head) is
+    // undone if it would walk off a ledge: it needs ground under the body's centre, not just
+    // under its rim (the controller still calls a body hanging on a corner "grounded").
+    if (stayOnGround && wasGrounded && (!grounded || !this.groundUnder(sx + mx, sy + my, sz + mz))) {
+      this.setBodyAt(sx, sy, sz);
+      out.set(0, 0, 0);
+      return true;
+    }
     out.set(mx, my, mz);
     return grounded;
+  }
+
+  /** Is there ground just under the centre of the body at this body position? */
+  private groundUnder(x: number, y: number, z: number): boolean {
+    const r = this.ray;
+    const feet = y - tuning.bodyHeight / 2 - 0.02;
+    r.origin.x = x;
+    r.origin.y = feet + 0.1;
+    r.origin.z = z;
+    r.dir.x = 0;
+    r.dir.y = -1;
+    r.dir.z = 0;
+    return !!this.world.castRay(r, 0.1 + tuning.stepHeight + 0.05, true, undefined, GROUPS.player, this.playerCollider);
+  }
+
+  /**
+   * How far a ball of `radius` can travel from `start` along `dir` (unit) before it hits
+   * something solid to the player, up to `maxDist`. 0 if it starts inside something.
+   */
+  headRoom(start: Vector3, dir: Vector3, maxDist: number, radius: number): number {
+    if (!this.headBall || this.headBall.radius !== radius) this.headBall = new RAPIER.Ball(radius);
+    const hit = this.world.castShape(start, Physics.IDENTITY, dir, this.headBall, 0, maxDist, true, undefined, GROUPS.player, this.playerCollider);
+    return hit ? Math.max(0, hit.time_of_impact) : maxDist;
   }
 
   /** One controller move from where the body is now; applies it and returns grounded. */

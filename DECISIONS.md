@@ -161,10 +161,16 @@ back; the bench fills the level with random scans):
   controller: it slides along walls, follows slopes up to 42° and snaps to the ground going down. Speed follows
   how far the stick is pushed (1.6 m/s at full: deliberate, for tense exploration). Right stick turns: snap
   45° by default, 30° or smooth as options.
-- **Your room steps go through the same collision.** Each frame the body tries to go where your head went in
-  the room plus where the stick pushes; the rig is then shifted so your head is over the body. Walking into an
-  unscanned wall in the dark stops you whether you used the stick or your legs, and stepping back frees you at
-  once.
+- **Your head leans freely; your body follows it.** The stick moves the body and you with it. When you move
+  in the room, the body steps after your head once it's more than 30 cm away, and never off a ledge (it needs
+  ground under its centre). The head itself is a 12 cm ball cast out from the body: it stops at a wall's
+  surface and can't lean more than 75 cm past where the body can follow. Walking into an unscanned wall in
+  the dark stops you whether you used the stick or your legs, and stepping back frees you at once.
+- **Why (first playtest, 2026-10-20):** the first version kept the body exactly under the head, so leaning
+  over the mezzanine railing or an edge pushed the whole view back: the body hit the railing, or would have
+  walked off the edge. Now the self-test leans 70 cm out over the railing with no push at all, leans out over
+  the stairs' open side without falling, and walks 2 m in the room with the body trailing 30 cm and nothing
+  pushed back.
 - **Steps are our own.** Rapier's autostep never climbed while ground snapping was on (it twitched 2 cm up at
   the first riser and stopped; measured). The controller now tries a blocked move again lifted by 28 cm,
   then settles; it keeps that only if it got further and landed no more than a step higher, so walls and
@@ -176,13 +182,14 @@ back; the bench fills the level with random scans):
 
 ## 10. Testing without a headset
 
-The same loop as vr-test: `?emulate&selftest` runs **21 scripted checks** against the emulated Frame, each
+The same loop as vr-test: `?emulate&selftest` runs **24 scripted checks** against the emulated Frame, each
 driven the way a player would and checked with numbers: boot, scanning a wall (all dots on the wall, all
 inside the cone), dedup, range uploads, save and restore, incremental saves, dropping a save from another
 level version, entity dots fading, the entity collider following its animation, analogue walking speed,
-wall collision, room-scale pushback, the stairs, snap turning, opening the menu with the palm and clicking it
+wall collision, the head stopping at a wall, walking in the room, leaning over a railing and over a ledge,
+the stairs, snap turning, opening the menu with the palm and clicking it
 with the scanner (which mustn't fire), live settings, dots visible and dimmer far away, occlusion, the dot cap,
-1 M dots within the GPU budget, and no frame errors. All 21 pass on the dev server and the production build.
+1 M dots within the GPU budget, and no frame errors. All 24 pass on the dev server and the production build.
 
 ## 11. Not done yet (deliberately)
 

@@ -328,8 +328,8 @@ const CHECKS: Check[] = [
   [
     'room-pushback',
     async (d) => {
-      // Walking into the wall in your real room: the head is pushed back to the body.
-      const a = d.app;
+      // Walking into the wall in your real room: the head stops at the wall's surface (a 12 cm
+      // ball), the body stays out of the wall, and stepping back frees you at once.
       await standAt(d, v3(0, 0, -0.8));
       for (let i = 1; i <= 30; i++) {
         d.setHeadRoom(-0.1 * i, 1.6, 0);
@@ -337,13 +337,93 @@ const CHECKS: Check[] = [
       }
       await d.frames(3);
       const head = d.head();
-      expect(head.x > -2 + tuning.bodyRadius - 0.04, `head went into the wall: x ${head.x.toFixed(3)}`);
-      // And moving the head back frees you immediately (the room offset stays).
+      const feet = d.feet();
+      expect(head.x > -2 + 0.12 - 0.02, `head went into the wall: x ${head.x.toFixed(3)}`);
+      expect(head.x < -2 + 0.12 + 0.04, `head held back too far from the wall: x ${head.x.toFixed(3)}`);
+      expect(feet.x > -2 + tuning.bodyRadius - 0.04, `body in the wall: x ${feet.x.toFixed(3)}`);
       d.setHeadRoom(-2.5, 1.6, 0);
       await d.frames(4);
       const back = d.head().x;
       expect(back > head.x + 0.3, `moving back didn't move you (${head.x.toFixed(2)} → ${back.toFixed(2)})`);
-      return { headX: r2(head.x), pushback: r2(a.locomotion.pushback), afterStepBack: r2(back) };
+      return { headX: r2(head.x), feetX: r2(feet.x), afterStepBack: r2(back) };
+    },
+  ],
+  [
+    'room-walk',
+    async (d) => {
+      // Walking 2 m in the room: the body follows (up to 30 cm behind the head), nothing pushes back.
+      const a = d.app;
+      await standAt(d, v3(0, 0, 1.6));
+      const z0 = d.head().z;
+      let maxPush = 0;
+      for (let i = 1; i <= 60; i++) {
+        d.setHeadRoom(0, 1.6, (-2 * i) / 60);
+        await d.frames(1);
+        maxPush = Math.max(maxPush, a.locomotion.pushback);
+      }
+      await d.frames(3);
+      const head = d.head();
+      const lag = Math.hypot(head.x - d.feet().x, head.z - d.feet().z);
+      expect(Math.abs(z0 - 2 - head.z) < 0.01, `head at z ${head.z.toFixed(3)}, expected ${(z0 - 2).toFixed(3)}`);
+      expect(maxPush < 0.001, `pushed back ${maxPush.toFixed(3)} m while walking in the open`);
+      expect(lag < 0.31, `body ${lag.toFixed(2)} m behind the head`);
+      return { lag: r2(lag) };
+    },
+  ],
+  [
+    'lean-railing',
+    async (d) => {
+      // At the mezzanine railing (top rail 1 m), lean out 70 cm: the view isn't pushed back.
+      const a = d.app;
+      await standAt(d, v3(2, 4, -30.45), 180); // facing +Z, the railing 40 cm ahead
+      const from = d.head();
+      const to = v3(2, 4 + 1.45, -29.75);
+      let maxPush = 0;
+      for (let i = 1; i <= 30; i++) {
+        d.setHeadWorld(from.clone().lerp(to, i / 30), 180, -30);
+        await d.frames(1);
+        maxPush = Math.max(maxPush, a.locomotion.pushback);
+      }
+      await d.frames(3);
+      const head = d.head();
+      const feet = d.feet();
+      expect(maxPush < 0.001, `the view was pushed back ${maxPush.toFixed(3)} m`);
+      expect(head.distanceTo(to) < 0.01, `head at ${head.toArray().map(r2)}, leaned to ${to.toArray().map(r2)}`);
+      expect(Math.abs(feet.y - 4) < 0.03 && feet.z < -30.2, `body at ${feet.toArray().map(r2)}: went over the railing?`);
+      return { head: head.toArray().map(r2), feet: feet.toArray().map(r2) };
+    },
+  ],
+  [
+    'lean-ledge',
+    async (d) => {
+      // On the stairs' open side, lean out over the drop: you don't fall, and you can lean up to
+      // 75 cm past where your body can stand.
+      await standAt(d, v3(9.25, 2.25, -24.37), 90); // facing west (-X), the edge 45 cm away
+      const from = d.head();
+      const lean = async (x: number) => {
+        const start = d.head();
+        const to = v3(x, from.y - 0.1, from.z);
+        for (let i = 1; i <= 25; i++) {
+          d.setHeadWorld(start.clone().lerp(to, i / 25), 90, -35);
+          await d.frames(1);
+        }
+        await d.frames(3);
+        return to;
+      };
+      const to = await lean(8.3);
+      const head = d.head();
+      const feet = d.feet();
+      expect(Math.abs(feet.y - 2.25) < 0.03, `fell: feet at y ${feet.y.toFixed(3)}`);
+      expect(head.distanceTo(to) < 0.01, `head at x ${head.x.toFixed(3)}, leaned to ${to.x}`);
+      expect(head.x < 8.5, 'not out over the edge');
+      await lean(7.0);
+      const far = d.head();
+      const feet2 = d.feet();
+      const reach = Math.hypot(far.x - feet2.x, far.z - feet2.z);
+      expect(Math.abs(feet2.y - 2.25) < 0.03, `fell: feet at y ${feet2.y.toFixed(3)}`);
+      expect(feet2.x > 8.58, `body centre ${feet2.x.toFixed(2)} hangs past the step's edge (8.6)`);
+      expect(Math.abs(reach - 0.75) < 0.02, `leaning ${reach.toFixed(2)} m past the body (limit 0.75)`);
+      return { lean: r2(feet.x - head.x), feetX: r2(feet2.x), maxReach: r2(reach) };
     },
   ],
   [
