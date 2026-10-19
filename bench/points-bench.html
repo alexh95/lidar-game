@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Points bench</title></head>
+<body style="background:#111;color:#eee;font:14px monospace">
+<pre id="out">running…</pre>
+<canvas id="c" width="64" height="64"></canvas>
+<script>
+// Raw WebGL2 point-cloud benchmark: N lidar-style dots on the surfaces of a room,
+// drawn twice (one per eye) into a 2160x2160 target (Steam Frame per-eye resolution),
+// 100° FOV, depth-tested. GPU time from EXT_disjoint_timer_query_webgl2 if available,
+// otherwise wall time with a 1-pixel readPixels sync.
+const out = document.getElementById('out');
+const log = (s) => { out.textContent += '\n' + s; };
+const gl = document.getElementById('c').getContext('webgl2', { antialias: false });
+const tq = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+out.textContent = 'renderer: ' + (dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : '?') + '\ntimer query: ' + !!tq;
+const W = 2160, H = 2160;
+const fb = gl.createFramebuffer();
+gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+const col = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, col); gl.renderbufferStorage(gl.RENDERBUFFER, gl.RGBA8, W, H);
+gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, col);
+const dep = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, dep); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, W, H);
+gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, dep);
+const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; };
+const prog = (round) => {
+  const p = gl.createProgram();
+  gl.attachShader(p, sh(gl.VERTEX_SHADER, `#version 300 es
+  layout(location=0) in vec3 pos; uniform mat4 mvp; uniform vec3 eye; out vec3 c;
+  void main(){ gl_Position = mvp * vec4(pos,1.0); float d = distance(pos, eye);
+    gl_PointSize = clamp(2.2 * 1080.0 * 0.012 / max(d,0.1), 1.0, 8.0);
+    c = mix(vec3(1.0,0.9,0.3), vec3(0.1,0.4,1.0), clamp(d/20.0,0.0,1.0)); }`));
+  gl.attachShader(p, sh(gl.FRAGMENT_SHADER, `#version 300 es
+  precision mediump float; in vec3 c; out vec4 o;
+  void main(){ ${round ? 'vec2 q = gl_PointCoord - 0.5; if (dot(q,q) > 0.25) discard;' : ''} o = vec4(c,1.0); }`));
+  gl.linkProgram(p); return p;
+};
+const progs = { round: prog(true), square: prog(false) };
+// Points on the inside of a 20 x 4 x 20 m room plus some pillars (like scanned walls).
+function makePoints(n) {
+  const a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const r = Math.random(); let x, y, z;
+    const u = Math.random() * 20 - 10, v = Math.random() * 4, w = Math.random() * 20 - 10;
+    if (r < 0.2) { x = u; y = 0; z = w; } else if (r < 0.3) { x = u; y = 4; z = w; }
+    else if (r < 0.45) { x = -10; y = v; z = w; } else if (r < 0.6) { x = 10; y = v; z = w; }
+    else if (r < 0.75) { x = u; y = v; z = -10; } else if (r < 0.85) { x = u; y = v; z = 10; }
+    else { const k = Math.floor(Math.random() * 9), px = (k % 3 - 1) * 5, pz = (Math.floor(k / 3) - 1) * 5, t = Math.random() * 6.283; x = px + Math.cos(t) * 0.4; y = v; z = pz + Math.sin(t) * 0.4; }
+    a[i * 3] = x; a[i * 3 + 1] = y; a[i * 3 + 2] = z;
+  }
+  return a;
+}
+function persp(fovy, aspect, near, far) { const f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far); return [f / aspect, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) * nf, -1, 0, 0, 2 * far * near * nf, 0]; }
+function mul(a, b) { const o = new Array(16).fill(0); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) for (let k = 0; k < 4; k++) o[j * 4 + i] += a[k * 4 + i] * b[j * 4 + k]; return o; }
+function view(ex, ey, ez, yaw) { const c = Math.cos(yaw), s = Math.sin(yaw); return [c, 0, s, 0, 0, 1, 0, 0, -s, 0, c, 0, -(c * ex - s * ez), -ey, -(s * ex + c * ez), 0].map((v, i) => (i === 15 ? 1 : v)); }
+const P = persp(100 * Math.PI / 180, 1, 0.05, 100);
+const vbo = gl.createBuffer();
+async function bench(n, kind) {
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo); gl.bufferData(gl.ARRAY_BUFFER, makePoints(n), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+  const p = progs[kind]; gl.useProgram(p);
+  const uM = gl.getUniformLocation(p, 'mvp'), uE = gl.getUniformLocation(p, 'eye');
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.viewport(0, 0, W, H); gl.enable(gl.DEPTH_TEST); gl.clearColor(0, 0, 0, 1);
+  const frame = (f) => {
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    for (const ex of [-0.032, 0.032]) { // two eyes
+      const yaw = f * 0.05; gl.uniformMatrix4fv(uM, false, mul(P, view(ex, 1.6, 0, yaw))); gl.uniform3f(uE, ex, 1.6, 0);
+      gl.drawArrays(gl.POINTS, 0, n);
+    }
+  };
+  const px = new Uint8Array(4);
+  for (let f = 0; f < 5; f++) frame(f); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  const F = 30; let gpu = null;
+  if (tq) {
+    const qs = [];
+    for (let f = 0; f < F; f++) { const q = gl.createQuery(); gl.beginQuery(tq.TIME_ELAPSED_EXT, q); frame(f); gl.endQuery(tq.TIME_ELAPSED_EXT); qs.push(q); }
+    gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    await new Promise((r) => setTimeout(r, 300));
+    let sum = 0, ok = 0;
+    for (const q of qs) { if (gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE) && !gl.getParameter(tq.GPU_DISJOINT_EXT)) { sum += gl.getQueryParameter(q, gl.QUERY_RESULT); ok++; } gl.deleteQuery(q); }
+    if (ok) gpu = sum / ok / 1e6;
+  }
+  const t0 = performance.now();
+  for (let f = 0; f < F; f++) frame(f);
+  gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  const wall = (performance.now() - t0) / F;
+  return { gpu, wall };
+}
+(async () => {
+  const res = [];
+  for (const kind of ['square', 'round']) {
+    for (const n of [100e3, 300e3, 1e6, 3e6, 10e6]) {
+      const r = await bench(n, kind);
+      const line = `${kind.padEnd(6)} ${String(n / 1e3).padStart(6)}k pts x2 eyes @2160²: gpu ${r.gpu === null ? '  n/a' : r.gpu.toFixed(2).padStart(6) + ' ms'}  wall ${r.wall.toFixed(2).padStart(6)} ms/frame`;
+      log(line); res.push({ kind, n, ...r });
+    }
+  }
+  window.__bench = res;
+  log('done');
+})().catch((e) => { log('ERROR ' + e); window.__bench = { error: String(e) }; });
+</script>
+</body>
+</html>
