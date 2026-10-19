@@ -11,7 +11,8 @@ accordingly", so the next session can build the game.
 
 **Update (2026-10-20).** Alex answered the open questions (§1.1). The working name and repo are **lidar-game**
 (`C:\Projects\cc\lidar-game`, public GitHub repo `alexh95/lidar-game`). Where §1.1 disagrees with anything
-below, §1.1 wins. The first milestone is the technical one: prove the project is viable (§8, "V1").
+below, §1.1 wins. The first milestone is the technical one: prove the project is viable. **It's built and
+passes its checks in the emulator; see §8.0 for what's done, what was measured and what's next.**
 
 ---
 
@@ -75,7 +76,7 @@ while you wait.
 
 | # | Answer | What it changes |
 |---|---|---|
-| 1 | **Tense exploration, no jump scares whatsoever.** Liminal, empty loneliness. Eerie: "kind of like an empty, colourless and soulless *The Witness*". Simple environment puzzles could come later; more of that will be built on later. | Near-monochrome palettes (luma, not hue, carries the information, which is also what the codec wants, §6.2). Quiet, sparse sound. Architecture that feels built and abandoned. Nothing ever jumps out. |
+| 1 | **Tense exploration, no jump scares whatsoever.** Liminal, empty loneliness; eerie, colourless and soulless spaces. Simple environment puzzles could come later; more of that will be built on later. Panels on pedestals don't fit this kind of game. | Near-monochrome palettes (luma, not hue, carries the information, which is also what the codec wants, §6.2). Quiet, sparse sound. Architecture that feels built and abandoned. Nothing ever jumps out. No puzzle furniture in the levels for now. |
 | 2 | A **new public repo**, `lidar-game`. The folder was renamed to `lidar-game` before `git init`. | `C:\Projects\cc\lidar-game`, GitHub `alexh95/lidar-game` (public), `main` only. |
 | 3 | Dot colour is **material dependent and distance dependent**, the distance part **not fixed at cast time but dynamic**, so it tells depth as you move. | The shader colours each dot from its material's palette entry, then shades it by its *current* distance to the eye every frame. Nothing distance-related is stored per point. |
 | 4 | Movement is **analogue** (smooth stick walking). | Smooth walking with collision (Rapier's character controller) is the default. Teleport isn't needed for now. |
@@ -532,8 +533,8 @@ encoder configuration. Its job is to rank options, not to predict exact quality.
 
 ### 6.4 In-headset fidelity lab (`?lab`; for Alex in M3)
 
-- A dark test room, **pre-filled with dots** (no scanning needed), with panels at 1, 3, 6 and 12 m.
-- Each panel is split into labelled tiles showing variants:
+- A dark test room, **pre-filled with dots** (no scanning needed), with test walls at 1, 3, 6 and 12 m.
+- Each test wall is split into labelled tiles showing variants:
   - minimum size: 1.5 / 2.5 / 3.5 px;
   - edge: hard / soft A2C / soft A2C with a larger falloff;
   - palette: luma-rich / hue-only / monochrome;
@@ -625,6 +626,36 @@ See §3.3.
 Each milestone ends with: `npm run build` clean, the self-test green on the dev server **and** the production
 build (`npm run preview`), DECISIONS.md and README updated, and a short plain-language report to Alex. Commit
 or push only when he asks (§10).
+
+### 8.0 Where things stand (2026-10-20)
+
+Alex's answers (§1.1) changed the order: levels come from Blender from the start, walking is analogue,
+scans persist, and the first milestone is the technical one. **V1 is done in the emulator** (details and
+numbers in DECISIONS.md):
+
+- **Done:** M0 (scaffold, launch configs, benchmarks re-run within 20%) and M1 (scanner, point store with
+  dedup and range uploads, dot shader, occlusion pass, perf read-out), plus from later milestones: Blender
+  levels with animation (from M5), analogue walking with collision and stairs (M5), saving the scan (M7),
+  fading entity dots (M7), the GPU timer and an in-game benchmark (M4, §7.2). 21 self-test checks, green on dev
+  and production builds.
+- **Measured:** 4 M dots cost 1.0–2.2 ms GPU for both 2160² eyes in normal views (2.8 ms worst case), rays
+  1.2–1.9 µs each in the game (850–1,300 per frame in a 1.6 ms budget), 950k dots restore in 200 ms.
+- **Not done:** anything on the real headset, and the stream fidelity work (M2). The look has only been
+  judged on emulator snapshots.
+
+**Next, in order:**
+1. **M3-lite, a first headset session (Alex):** the README's first-run checklist. It's cheap and answers the
+   biggest unknown (how dots survive the stream) before building tools around guesses.
+2. **M2, fidelity lab and codec simulator** (§6.3–6.4), shaped by what Alex reports.
+3. **Ideas the V1 work turned up:**
+   - *Distance-scaled dedup.* Heavily scanned surfaces 10 m+ away fill in to near-solid grey (2.5 px dots at
+     2.5 cm spacing). A dedup cell that grows with scan distance (a few nested grids) would keep far surfaces
+     dotty, save memory, and still let you add detail by walking closer. A lab toggle.
+   - *Save hitch.* Each grown block is copied on the main thread when the save runs (every 5 s). Measure it
+     in the headset; spread it over frames or move it to a worker if it shows.
+   - *Scanner modes* (§5.3: sweep line, pulse) and *gameplay* (§M5): once the look is settled.
+
+The milestone list below is the original plan, kept for reference.
 
 **M0. Scaffold (half a day)**
 - New Vite project in `C:\Projects\cc\lidar`, built from vr-test's foundation (§4.1).
@@ -724,8 +755,8 @@ or push only when he asks (§10).
 - Add these entries:
 
 ```json
-{ "name": "lidar", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "lidar", "run", "dev", "--", "--port", "5180", "--strictPort"], "port": 5180 },
-{ "name": "lidar-preview", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "lidar", "run", "preview", "--", "--port", "4180", "--strictPort"], "port": 4180 }
+{ "name": "lidar", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "lidar-game", "run", "dev", "--", "--port", "5180", "--strictPort"], "port": 5180 },
+{ "name": "lidar-preview", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "lidar-game", "run", "preview", "--", "--port", "4180", "--strictPort"], "port": 4180 }
 ```
 
 - **The pane can be 0×0 when hidden.** Before snapshots or self-tests, call `resize_window` 1280×720 on the tab.
@@ -755,10 +786,8 @@ or push only when he asks (§10).
 - If an auto-mode permission check blocks a push, don't work around it. Tell Alex; he can allow it.
 
 **Memory**
-- The auto-memory directory for sessions started in `C:\Projects\cc` is
-  `C:\Users\halex\.claude\projects\C--Projects-cc\memory\`.
-- Add a `project-lidar.md` memory (with an index line in `MEMORY.md`) once the project exists. Don't duplicate
-  what the repo records.
+- Sessions started in `C:\Projects\cc` share an auto-memory; it has a `project-lidar-game` entry. Don't
+  duplicate what the repo records.
 
 **Working with Alex**
 - He tests on the real headset and reports feel tersely ("jank", "rubber bands", "hard to use"). Ask a focused

@@ -1,7 +1,7 @@
 // Lidar raycast benchmark with Rapier (the physics engine the repo already uses):
 // a level made of a big room with a maze of wall boxes and some round pillars, as one
 // static trimesh. Cast a "scanner spray" of rays from inside, first hit + normal.
-import RAPIER from 'file:///C:/Projects/cc/vr-test/node_modules/@dimforge/rapier3d-compat/dist/rapier.mjs';
+import RAPIER from '@dimforge/rapier3d-compat';
 
 await RAPIER.init();
 

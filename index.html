@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>lidar-game</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23000'/%3E%3Cg fill='%23d9dcdf'%3E%3Ccircle cx='14' cy='40' r='3'/%3E%3Ccircle cx='24' cy='34' r='3'/%3E%3Ccircle cx='34' cy='30' r='3'/%3E%3Ccircle cx='44' cy='28' r='3'/%3E%3Ccircle cx='52' cy='27' r='2.4'/%3E%3Ccircle cx='20' cy='46' r='2.4'/%3E%3Ccircle cx='32' cy='42' r='2.4'/%3E%3Ccircle cx='44' cy='40' r='2'/%3E%3C/g%3E%3C/svg%3E" />
+    <style>
+      :root {
+        --ink: #e6e8ea;
+        --muted: #9ea4a9;
+        --accent: #d9dcdf;
+        --panel: rgba(10, 11, 13, 0.78);
+        --line: rgba(255, 255, 255, 0.12);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; background: #000; color: var(--ink); overflow: hidden; }
+      body { font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+      #overlay {
+        position: fixed; left: 16px; bottom: 16px; width: min(440px, calc(100vw - 32px));
+        max-height: calc(100vh - 32px); overflow: auto;
+        background: var(--panel); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+        border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px 16px;
+      }
+      #overlay h1 { margin: 0 0 2px; font-size: 24px; letter-spacing: 0.04em; font-weight: 600; }
+      #overlay .sub { margin: 0 0 14px; color: var(--muted); }
+      #enter {
+        width: 100%; padding: 13px 16px; font: 600 17px system-ui, sans-serif; color: #0c0d0e;
+        background: var(--accent); border: 0; border-radius: 10px; cursor: pointer;
+      }
+      #enter:disabled { background: #3a3d40; color: #9ea4a9; cursor: default; }
+      #enter:not(:disabled):hover { filter: brightness(1.08); }
+      #status { margin: 10px 0 0; min-height: 1.4em; color: var(--muted); font-size: 13.5px; }
+      #status.warn { color: #e0c98a; }
+      #status.err { color: #e09a8a; }
+      details { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+      summary { cursor: pointer; color: var(--ink); font-weight: 600; }
+      ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+      li { margin: 3px 0; }
+      kbd { font: 12px ui-monospace, monospace; background: rgba(255,255,255,.1); border-radius: 4px; padding: 1px 5px; color: var(--ink); }
+      #loading { position: fixed; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 15px; pointer-events: none; }
+      @media (max-width: 520px) { #overlay { left: 16px; right: 16px; width: auto; } }
+    </style>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div id="loading">Loading…</div>
+    <div id="overlay" hidden>
+      <h1>lidar-game</h1>
+      <p class="sub">Alone in the dark with a scanner. What you scan stays.</p>
+      <button id="enter" disabled>Checking for VR…</button>
+      <p id="status"></p>
+      <details>
+        <summary>Controls</summary>
+        <ul>
+          <li><b>Trigger</b> (scanner hand): scan. Squeeze harder to narrow the beam.</li>
+          <li><b>Left stick</b>: walk. <b>Right stick</b>: turn.</li>
+          <li><b>Look at your free palm</b> for the menu. Point the scanner at it and pull the trigger.</li>
+        </ul>
+      </details>
+      <details>
+        <summary>Running this on a Steam Frame</summary>
+        <ul>
+          <li>Stream from this PC: start SteamVR, open this page in Chrome or Edge on the desktop, and press <b>Enter VR</b>.</li>
+          <li>No headset? Add <kbd>?emulate</kbd> to the URL for an emulated one.</li>
+        </ul>
+      </details>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
