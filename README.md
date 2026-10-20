@@ -85,6 +85,11 @@ writes `.snapshots/<name>.png`), `measure(opts)`, `bench.fill(n)` (fill the clou
 Benchmarks outside the game: `bench/points-bench.html` (raw WebGL dots; open it through the dev server) and
 `npm run bench:rays` (Rapier ray cost).
 
+**Codec simulator** (how dots survive the headset's video stream, without a headset): `?capture=<name>&motion=still|sway|yaw30|yaw120|walk|scan`
+on the dev server renders 90 frames of one 2160² eye into `.captures/<name>/` (`&minpx= &palette= &cell=` pick
+the style), then `python tools/codec/codec.py all <name>` encodes them with NVENC at 25–200 Mbps and measures
+dot survival, shimmer and SSIM, with zoomed crops. Results and the recommended style: [docs/codec-report.md](docs/codec-report.md).
+
 ## Scripts
 
 | Script | |
@@ -114,6 +119,6 @@ src/
   dev/        emulator, driver, self-test, probe, snapshots, benchmarks
 levels/       .blend sources (and the authoring guide)
 public/levels/  exported .glb files the game loads
-tools/        Blender scripts, level export, contact sheet
+tools/        Blender scripts, level export, contact sheet, codec simulator (tools/codec/)
 bench/        standalone benchmarks
 ```

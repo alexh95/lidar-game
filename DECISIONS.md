@@ -191,8 +191,39 @@ the stairs, snap turning, opening the menu with the palm and clicking it
 with the scanner (which mustn't fire), live settings, dots visible and dimmer far away, occlusion, the dot cap,
 1 M dots within the GPU budget, and no frame errors. All 24 pass on the dev server and the production build.
 
-## 11. Not done yet (deliberately)
+## 11. The video stream: an offline codec simulator (2026-10-20)
 
-- The offline codec simulator and the in-headset fidelity lab (plan §6.3–6.4): next.
+Nothing has been tried on the Frame yet, so how dots survive SteamVR's video encoding (plan §6) was
+simulated on this PC with the same NVENC hardware. The full report, with crops, is
+[docs/codec-report.md](docs/codec-report.md).
+
+- **How it works.** `?capture=<name>&motion=…` (dev server, `src/dev/capture.ts`) fills the cloud from
+  seeded random rays, so every style gets the same scan. It renders a scripted head motion for one 2160² eye
+  offscreen through `renderPixels` (the sRGB path the headset gets), 90 frames of virtual time, and posts
+  them to a dev-server sink (`.captures/<name>/`). With them goes `dots.json`: where about 1,900 tracked
+  dots land in every frame. `tools/codec/codec.py` encodes with NVENC (H.264, HEVC, AV1, HEVC 10-bit;
+  low-latency CBR at 25–200 Mbps per eye) and measures each tracked dot's brightness before and after,
+  frame-to-frame flicker, shimmer, SSIM and PSNR. It also cuts zoomed crops. The game's frame loop is paused
+  while it runs, nothing is saved, and the player's settings aren't touched.
+- **Dot-level metrics, not SSIM.** Whole-frame SSIM and PSNR are dominated by black, and they rank bigger
+  dots *worse* (more bright pixels, more absolute error) while the dots themselves survive far better. The
+  numbers that decide are each dot's peak brightness after / before (the 10th percentile, and the share
+  under half) and its flicker.
+- **"Still" has two versions.** A frozen head lets the encoder converge: HEVC uses about 20 Mbps whatever the
+  cap, and the result is near-lossless. Real heads drift, and with even 1–2°/s of sway the encoder runs at
+  its cap. So *sway* is the realistic standing case.
+- **Results (HEVC, slow turn, 50 Mbps per eye; p10 of dot brightness):** 1.5 px 0.44 (12% of dots under
+  half), 2.5 px 0.75, **3 px 0.98**, 3.5 px 1.02. 3 px is the knee. 3.5 px also survives, but its far-field
+  dots merge into grey blotches. The palette (Ash or Mono) and a 4 cm dedup cell change p10 by only a few
+  hundredths. HEVC beat AV1 and H.264 in motion, and 10-bit HEVC was no better than 8-bit.
+- **Recommendation: minimum dot 3 px** (now 2.5), Ash, 2.5 cm cell, HEVC 8-bit if SteamVR offers a choice.
+  The default is unchanged in code until the headset confirms it. The wrist menu's Min dot options
+  (1.5 / 2.5 / 3.5) don't include 3 yet.
+- **Limits:** one eye, luma only, no foveation or lens warp, and SteamVR's real encoder settings are
+  unknown. It ranks options; the headset decides.
+
+## 12. Not done yet (deliberately)
+
+- The in-headset fidelity lab (plan §6.4): next. The offline codec simulator is done (§11).
 - Worker ray casting, the compact 8-byte format, GPU scanning: not needed at these numbers.
 - Puzzles, more scanner modes, story, more levels.

@@ -81,6 +81,11 @@ async function boot(): Promise<void> {
   if (emu) (window as unknown as { __emu: Emu }).__emu = emu;
   const { installProbe } = await import('./dev/probe');
   installProbe(app, emu);
+  if (flags.capture !== null) {
+    // Dev only (the frames go to the dev server's sink): see src/dev/capture.ts.
+    const { installCapture } = await import('./dev/capture');
+    installCapture(app);
+  }
 
   if (emu && (flags.autostart || flags.selftest)) {
     await app.enterVR();

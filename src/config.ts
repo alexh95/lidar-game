@@ -31,9 +31,11 @@ export const flags = {
   /** Seed for the scan pattern (tests make scans deterministic with it). */
   seed: num('seed'),
   /** Start with an empty scan and don't load the saved one (it is still saved over). */
-  fresh: params.has('fresh'),
+  fresh: params.has('fresh') || params.has('capture'),
   /** Save slot: scans of the same level in different slots don't mix (the self-test uses its own). */
-  slot: (params.get('slot') ?? (params.has('selftest') ? 'selftest' : 'main')).replace(/[^a-z0-9_-]/gi, ''),
+  slot: (params.get('slot') ?? (params.has('selftest') ? 'selftest' : params.has('capture') ? 'capture' : 'main')).replace(/[^a-z0-9_-]/gi, ''),
+  /** ?capture=name (dev server): render a scripted head motion offscreen for tools/codec/ (src/dev/capture.ts). */
+  capture: params.get('capture'),
   /** ?bench: fill the cloud with N dots through the real renderer and report GPU time. */
   bench: params.has('bench'),
 };
