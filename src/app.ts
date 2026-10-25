@@ -218,7 +218,7 @@ export class App {
     if (inXR) {
       this.wristMenu.update(dt);
       if (this.locomotion.update(dt)) this.updateRig();
-      this.scanner.update(this.time, this.wristMenu.engaged);
+      this.scanner.update(dt, this.time, this.wristMenu.engaged);
       for (const h of this.input.hands) {
         const holding = h === this.scanner.hand;
         this.handModels[h.handedness].update(h, h.grip.matrix, 1, holding, dt, true);

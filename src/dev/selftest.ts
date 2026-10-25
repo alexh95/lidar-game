@@ -112,7 +112,43 @@ const CHECKS: Check[] = [
       expect(off === 0, `${off} dots are not on the wall plane`);
       expect(outside === 0, `${outside} dots outside the cone (r ${maxR.toFixed(2)} m)`);
       expect(a.cloud.uploaded >= 0 && bus.count('scan-start') > 0, 'no scan-start event');
-      return { dots: dots.length, coneRadius: r2(maxR), raysPerFrame: a.scanner.budget, usPerRay: r2(a.scanner.usPerRay) };
+      return { dots: dots.length, coneRadius: r2(maxR), raysPerSecond: a.scanner.rate, usPerRay: r2(a.scanner.usPerRay) };
+    },
+  ],
+  [
+    'ray-rate',
+    async (d) => {
+      // The scanner sends the same rays per second at a light touch (wide cone) and at full
+      // squeeze (narrow), and the count follows the setting at whatever frame rate this runs.
+      const a = d.app;
+      await standAt(d, v3(0, 0, 1.6));
+      const measure = async (pressure: number) => {
+        d.aimAt('right', d.head().add(v3(0.15, -0.25, 0)), v3(-2, 1.4, 1.0));
+        d.press('right', 'trigger', pressure);
+        await d.frames(3);
+        const rays0 = a.scanner.totalRays;
+        const t0 = a.time;
+        const f0 = a.frameCount;
+        await d.seconds(1.5);
+        const rate = (a.scanner.totalRays - rays0) / (a.time - t0);
+        const fps = (a.frameCount - f0) / (a.time - t0);
+        const cone = (a.scanner.halfAngle * 180) / Math.PI;
+        d.press('right', 'trigger', 0);
+        await d.frames(3);
+        return { rate, fps, cone };
+      };
+      const results: Record<string, unknown> = {};
+      for (const target of [10_000, 5_000]) {
+        setSetting('scanRate', target);
+        const light = await measure(0.15);
+        const full = await measure(1.0);
+        expect(light.cone > full.cone * 2.5, `cones ${light.cone.toFixed(1)}° and ${full.cone.toFixed(1)}° barely differ`);
+        for (const [name, m] of [['light', light], ['full', full]] as const)
+          expect(Math.abs(m.rate - target) < target * 0.03, `${name} pull at ${target}/s: ${m.rate.toFixed(0)} rays/s`);
+        results[target] = { light: Math.round(light.rate), full: Math.round(full.rate), cones: [r2(light.cone), r2(full.cone)], fps: r2(full.fps) };
+      }
+      setSetting('scanRate', 10_000);
+      return results;
     },
   ],
   [
@@ -507,6 +543,9 @@ const CHECKS: Check[] = [
       a.wristMenu.click('minpx:3.5');
       expect(a.dotUniforms.uMinPx.value === 3.5, 'min px not applied');
       a.wristMenu.click('minpx:2.5');
+      a.wristMenu.click('rate:5000');
+      expect(a.scanner.rate === 5000, 'scan rate not applied');
+      a.wristMenu.click('rate:10000');
       a.wristMenu.click('occlusion:off');
       expect(!a.level.root.visible, 'occlusion pass still on');
       a.wristMenu.click('occlusion:on');
@@ -615,6 +654,7 @@ export async function runSelfTest(app: App, emu: Emu, only: string[] | null = nu
   setSetting('palette', 'ash');
   setSetting('occlusion', true);
   setSetting('minPx', 2.5);
+  setSetting('scanRate', 10_000);
   await d.frames(5);
   d.measureGripOffsets();
 

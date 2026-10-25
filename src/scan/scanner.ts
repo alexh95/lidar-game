@@ -44,13 +44,17 @@ void main() {
 
 /**
  * The handheld lidar. Hold the trigger to spray rays; squeeze harder to narrow the cone
- * from a wide wash to a tight spot. Each frame it casts as many rays as fit in its time
- * budget, scattered at random over the cone (no fixed pattern, so no moiré and no regular
- * texture for the video encoder to choke on).
+ * from a wide wash to a tight spot. Rays are scattered at random over the cone (no fixed
+ * pattern, so no moiré and no regular texture for the video encoder to choke on).
+ *
+ * The scanner sends a fixed number of rays per second (the "Scan rate" setting), whatever
+ * the cone's width, the trigger pressure or the frame rate. So a wide, light pull spreads
+ * the same rays thinly over a big area, and a squeezed beam puts them close together: wide
+ * is quick and sparse, narrow is slow and dense. The CPU time budget only caps a frame's
+ * rays as a safety net (it's far above the rate on this PC).
  *
  * Hits on ordinary surfaces become permanent dots; hits on entity surfaces become fading
- * dots. The scanner never asks for more rays than the budget allows: the rate adapts to
- * the measured cost per ray.
+ * dots.
  */
 export class Scanner {
   readonly model = new Group();
@@ -68,6 +72,8 @@ export class Scanner {
   halfAngle = tuning.coneWideDeg * DEG;
   /** Measured cost of one ray (µs, smoothed). */
   usPerRay = 3;
+  /** Rays owed by the rate but not yet cast (the fraction carried between frames). */
+  private owed = 0;
   /** Last frame: rays cast, hits, permanent dots added, fading dots added, time spent (ms). */
   rays = 0;
   hits = 0;
@@ -75,7 +81,7 @@ export class Scanner {
   faded = 0;
   ms = 0;
   totalRays = 0;
-  /** Force a ray count per frame (tests and benchmarks); 0 = adaptive. */
+  /** Force a ray count per frame (tests and benchmarks); 0 = the rate. */
   fixedRays = 0;
   /** Origin and direction of the beam this frame (world). */
   readonly origin = new Vector3();
@@ -126,13 +132,17 @@ export class Scanner {
     return settings.scannerHand === 'left' ? this.app.input.left : this.app.input.right;
   }
 
-  /** Rays this frame: what fits in the time budget, or the fixed test count. */
+  /** Rays per second while the trigger is held. */
+  get rate(): number {
+    return settings.scanRate;
+  }
+
+  /** Most rays one frame may cast: what fits in the CPU time budget (a safety cap, not the rate). */
   get budget(): number {
-    if (this.fixedRays > 0) return this.fixedRays;
     return clamp(Math.floor((tuning.rayBudgetMs * 1000) / Math.max(this.usPerRay, 0.5)), tuning.minRaysPerFrame, tuning.maxRaysPerFrame);
   }
 
-  update(now: number, busy: boolean): void {
+  update(dt: number, now: number, busy: boolean): void {
     const h = this.hand;
     this.model.visible = h.aim.valid;
     this.rays = this.hits = this.added = this.faded = 0;
@@ -159,7 +169,19 @@ export class Scanner {
     // Squeeze to focus: the cone narrows with pressure.
     this.halfAngle = (tuning.coneWideDeg + (tuning.coneNarrowDeg - tuning.coneWideDeg) * Math.min(1, level * 1.1)) * DEG;
 
-    if (this.scanning) this.cast(now);
+    if (this.scanning) {
+      // Rays owed by the rate over this frame; the fraction carries to the next one, so the
+      // count per second is exact at any frame rate. Rays over the CPU cap are dropped, not
+      // owed (catching up after a hitch would make the next frames slower still).
+      this.owed += this.rate * Math.min(dt, 0.1);
+      let n = this.fixedRays > 0 ? this.fixedRays : Math.floor(this.owed);
+      this.owed -= n;
+      if (n > this.budget && this.fixedRays === 0) {
+        n = this.budget;
+        this.owed = 0;
+      }
+      this.cast(n, now);
+    }
 
     // The cone glow, the lens light and the sound follow the scan.
     const len = 1.1;
@@ -179,11 +201,11 @@ export class Scanner {
       bus.emit('scan-stop', { rays: this.totalRays });
     }
     this.level = 0;
+    this.owed = 0;
   }
 
-  /** Cast this frame's rays from `origin` along `direction` and turn the hits into dots. */
-  private cast(now: number): void {
-    const n = this.budget;
+  /** Cast `n` rays from `origin` around `direction` and turn the hits into dots. */
+  private cast(n: number, now: number): void {
     const f = _f.copy(this.direction);
     // A basis around the beam.
     const q = this.hand.aim.quaternion;

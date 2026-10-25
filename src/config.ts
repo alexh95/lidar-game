@@ -54,7 +54,7 @@ export const tuning = {
   coneWideDeg: 17, // half-angle with the trigger barely pressed
   coneNarrowDeg: 4.5, // half-angle at full squeeze
   scanRange: 60, // m: rays that hit nothing within this leave no dot
-  rayBudgetMs: 1.6, // main-thread time the scanner may spend per frame
+  rayBudgetMs: 1.6, // most main-thread time the scanner may spend in a frame (a safety cap; the rate is a setting)
   maxRaysPerFrame: 1600,
   minRaysPerFrame: 64,
 

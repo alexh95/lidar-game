@@ -39,6 +39,7 @@ export function installProbe(app: App, emu: Emu | null): void {
           scanning: sc.scanning,
           level: +sc.level.toFixed(2),
           halfAngleDeg: +((sc.halfAngle * 180) / Math.PI).toFixed(1),
+          rate: sc.rate,
           budget: sc.budget,
           usPerRay: +sc.usPerRay.toFixed(2),
           rays: sc.rays,

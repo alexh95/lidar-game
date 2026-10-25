@@ -10,7 +10,7 @@ SteamVR. Levels are authored in Blender.
 **Status (2026-10-20): first milestone (V1, technical viability) done in the emulator; not yet tried on the
 Frame.** Scanning, a persistent cloud of up to 4 M dots, material and live distance colouring, fading dots on
 moving things, saving between visits, analogue walking with collision and stairs, a Blender level pipeline,
-and 24 self-test checks. Numbers and reasoning: [DECISIONS.md](DECISIONS.md). Plan and next steps:
+and 25 self-test checks. Numbers and reasoning: [DECISIONS.md](DECISIONS.md). Plan and next steps:
 [PLAN.md](PLAN.md).
 
 | | |
@@ -45,7 +45,10 @@ feels through the stream:
    trail read as motion?
 6. **Walking:** stick speed (1.6 m/s at full), stairs up and down, bumping into unscanned walls (also by
    walking in your room), leaning over the mezzanine railing. Any discomfort in the dark?
-7. **Scanning feel:** the cone narrowing as you squeeze, the hum and hiss, the haptics, the scan rate.
+7. **Scanning feel:** the cone narrowing as you squeeze, the hum and hiss, the haptics. The scanner now sends a
+   fixed number of rays per second, so a light pull (wide) gives sparse dots and a squeeze (narrow) dense ones.
+   Try the menu's Scan rate (5k / 10k / 20k per second): which makes scanning feel like effort without being
+   tedious?
 8. **Persistence:** scan a bit, exit, reload the page, re-enter: your scan should be back.
 9. **Numbers, if you can:** the wrist menu's **Info** page (fps, GPU ms, eye resolution, refresh rates) and
    SteamVR's frame timing and stream settings (codec, bitrate, foveated streaming on or off).
@@ -57,8 +60,9 @@ feels through the stream:
 - **Look at your free palm** for the menu. Point the scanner at it and pull the trigger (it won't scan while
   you point at the menu), or poke it.
   - **Scan:** dot count and memory, save state, *Save now*, *Back to start*, *Clear scan* (press twice).
-  - **Settings:** turning, vignette, scanner hand, palette, occlusion (x-ray off/on), minimum dot size.
-  - **Info:** fps, GPU and CPU ms, draw calls, rays per frame, eye resolution, controller profiles.
+  - **Settings:** turning, vignette, scanner hand, palette, occlusion (x-ray off/on), minimum dot size, scan
+    rate (5k / 10k / 20k rays per second; the wide cone spreads the same rays more thinly).
+  - **Info:** fps, GPU and CPU ms, draw calls, scan rate, eye resolution, controller profiles.
 
 ## Levels
 
@@ -73,7 +77,7 @@ game. Conventions: [levels/README.md](levels/README.md). Open another level with
 | `?emulate` | An emulated headset (IWER) shaped like the Frame. Any desktop browser can enter "VR". |
 | `?emulate&devui` | Plus IWER's on-screen controls (mouse and keyboard). |
 | `?emulate&autostart` | Enter the emulated session at once; `window.__driver` moves the head and hands from the console. |
-| `?emulate&selftest` | The 24 scripted checks (`?selftest=scan-wall,stairs` for some). Results in `window.__selftest` and `[selftest] {…}` console lines. Uses its own save slot. |
+| `?emulate&selftest` | The 25 scripted checks (`?selftest=scan-wall,stairs` for some). Results in `window.__selftest` and `[selftest] {…}` console lines. Uses its own save slot. |
 
 Other flags: `?level=<name>`, `?slot=<name>` (save slot, default `main`), `?fresh` (start with an empty scan),
 `?seed=<n>` (repeatable scans), `?quality=low|high`.

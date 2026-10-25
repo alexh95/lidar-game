@@ -63,9 +63,17 @@ emulator and test loop were hard-won, and the dot renderer is a few hundred line
 - **Rays are scattered at random over the cone.** The first version used a golden-angle spiral (even coverage
   per frame, turned randomly each frame): the accumulated cloud showed its arcs clearly (caught in a snapshot).
   Random directions with deduplication fill the surface without structure for the eye or the encoder to see.
-- **Ray budget, not ray count.** Each frame casts as many rays as fit in 1.6 ms of main-thread time, from the
-  measured cost per ray: 1.2–1.9 µs in the game (one reused `RAPIER.Ray`, no normals), so 850–1,300 rays a
-  frame, about 60–95 k rays a second at 72 Hz.
+- **A fixed number of rays per second (changed 2026-10-26).** The scanner sends 10,000 rays a second (Scan
+  rate in the menu: 5k, 10k or 20k), whatever the cone's width, the trigger pressure or the frame rate: the
+  rays owed by the rate carry over between frames, so the count per second is exact at any frame rate
+  (self-test `ray-rate`: 10,000 and 5,000 rays/s, to within 0.1%, at a light touch and at full squeeze).
+  So the wide cone is a trade-off: it spreads the same rays thinly over a big area, while the squeezed beam
+  puts them close together. Before, each frame cast as many rays as fit in 1.6 ms (850–1,300 a frame, 60–95 k
+  a second), at any pressure. Alex found in the first playtest that a light pull then scanned a huge area at
+  full density for free.
+- **The CPU budget is now only a safety cap:** a frame never casts more rays than fit in 1.6 ms at the
+  measured cost (1.2–1.9 µs per ray here, so 850–1,300). At 10k/s and 72–90 Hz a frame needs 110–140.
+  Rays over the cap are dropped rather than owed, so a slow frame doesn't make the next ones slower.
 - **Feedback:** a faint, steady cone of light from the lens that shows the spread (stable, so cheap for the
   video encoder, unlike per-ray beam lines that change every frame), a small lens light that lights the
   hands, a hum whose pitch follows the trigger, a hiss that follows the hit rate, and light haptics.
@@ -182,14 +190,18 @@ back; the bench fills the level with random scans):
 
 ## 10. Testing without a headset
 
-The same loop as vr-test: `?emulate&selftest` runs **24 scripted checks** against the emulated Frame, each
+The same loop as vr-test: `?emulate&selftest` runs **25 scripted checks** against the emulated Frame, each
 driven the way a player would and checked with numbers: boot, scanning a wall (all dots on the wall, all
-inside the cone), dedup, range uploads, save and restore, incremental saves, dropping a save from another
+inside the cone), the same rays per second at any trigger pressure, dedup, range uploads, save and restore, incremental saves, dropping a save from another
 level version, entity dots fading, the entity collider following its animation, analogue walking speed,
 wall collision, the head stopping at a wall, walking in the room, leaning over a railing and over a ledge,
 the stairs, snap turning, opening the menu with the palm and clicking it
 with the scanner (which mustn't fire), live settings, dots visible and dimmer far away, occlusion, the dot cap,
-1 M dots within the GPU budget, and no frame errors. All 24 pass on the dev server and the production build.
+1 M dots within the GPU budget, and no frame errors. On 2026-10-26 all 25 passed on the dev server; on the
+production build 24 did, and the GPU-budget check failed. It reads a shared GPU, so other apps can push it
+over: that day it read 1.3–3.6 ms while the GPU was 38% busy with other apps and clocked at 1.2 of 3.1 GHz
+(the raw benchmark was 35% slower too). Re-run it with the PC otherwise idle before reading anything into a
+failure.
 
 ## 11. The video stream: an offline codec simulator (2026-10-20)
 

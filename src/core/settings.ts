@@ -16,6 +16,8 @@ export interface Settings {
   occlusion: boolean;
   /** Smallest dot on screen, in eye-buffer pixels (the video stream eats anything smaller). */
   minPx: number;
+  /** Rays the scanner sends per second, whatever the cone's width. */
+  scanRate: number;
 }
 
 const KEY = 'lidar-game.settings.v1';
@@ -29,6 +31,7 @@ function load(): Settings {
     palette: 'ash',
     occlusion: true,
     minPx: 2.5,
+    scanRate: 10_000,
   };
   try {
     const raw = localStorage.getItem(KEY);

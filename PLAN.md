@@ -639,7 +639,8 @@ numbers in DECISIONS.md):
   fading entity dots (M7), the GPU timer and an in-game benchmark (M4, §7.2). 21 self-test checks, green on dev
   and production builds.
 - **Measured:** 4 M dots cost 1.0–2.2 ms GPU for both 2160² eyes in normal views (2.8 ms worst case), rays
-  1.2–1.9 µs each in the game (850–1,300 per frame in a 1.6 ms budget), 950k dots restore in 200 ms.
+  1.2–1.9 µs each in the game (850–1,300 per frame fit in a 1.6 ms budget; since 2026-10-26 the scanner sends a
+  fixed 10k rays/s, adjustable), 950k dots restore in 200 ms.
 - **Not done:** anything on the real headset, and the stream fidelity work (M2). The look has only been
   judged on emulator snapshots.
 

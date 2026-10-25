@@ -205,6 +205,9 @@ export class WristMenu {
       case 'minpx':
         setSetting('minPx', +value);
         break;
+      case 'rate':
+        setSetting('scanRate', +value);
+        break;
       case 'action':
         if (value === 'recenter') app.locomotion.recenter();
         if (value === 'save') void app.save.save();
@@ -280,6 +283,7 @@ export class WristMenu {
       ['Palette', [['palette:ash', 'Ash', settings.palette === 'ash'], ['palette:tinted', 'Tinted', settings.palette === 'tinted'], ['palette:mono', 'Mono', settings.palette === 'mono']]],
       ['Occlusion', [['occlusion:on', 'On', settings.occlusion], ['occlusion:off', 'X-ray', !settings.occlusion]]],
       ['Min dot', [['minpx:1.5', '1.5 px', settings.minPx === 1.5], ['minpx:2.5', '2.5 px', settings.minPx === 2.5], ['minpx:3.5', '3.5 px', settings.minPx === 3.5]]],
+      ['Scan rate', [['rate:5000', '5k/s', settings.scanRate === 5000], ['rate:10000', '10k/s', settings.scanRate === 10000], ['rate:20000', '20k/s', settings.scanRate === 20000]]],
     ];
     const c = this.ctx;
     let y = 100;
@@ -307,7 +311,7 @@ export class WristMenu {
         `${s.fps.toFixed(0)} fps · frame ${s.frameMs.toFixed(1)} ms`,
         `gpu ${gpu === null ? 'n/a' : gpu.toFixed(2) + ' ms'} · cpu ${s.updateMs.toFixed(1)} + ${s.renderMs.toFixed(1)} ms`,
         `${s.calls} draws · ${(s.points / 1e6).toFixed(2)} M dots drawn`,
-        `rays ${sc.budget}/frame · ${sc.usPerRay.toFixed(1)} µs/ray`,
+        `rays ${(sc.rate / 1000).toFixed(0)}k/s (cap ${sc.budget}/frame) · ${sc.usPerRay.toFixed(1)} µs/ray`,
         `eye ${info?.framebuffer ? `${info.framebuffer.width}×${info.framebuffer.height}` : '?'} · ${info?.supportedFrameRates?.join('/') ?? 'n/a'} Hz`,
         `L ${a.input.left.profiles[0] ?? '—'}`,
         `R ${a.input.right.profiles[0] ?? '—'}`,
